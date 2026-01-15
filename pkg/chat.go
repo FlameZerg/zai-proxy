@@ -708,7 +708,11 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 		// 解析普通 JSON 响应
 		// 这里假设 z.ai 在 stream=false 时返回类似 OpenAI 的结构，或者自定义结构
 		// 由于 z.ai API 文档不明确，我们打印出来看看
-		LogDebug("Received non-sse response: %s", bodyStr[:min(len(bodyStr), 200)])
+		if len(bodyStr) > 200 {
+			LogDebug("Received non-sse response: %s...", bodyStr[:200])
+		} else {
+			LogDebug("Received non-sse response: %s", bodyStr)
+		}
 		
 		// 尝试解析常见结构
 		// 假设返回结构体包含 choices...
@@ -723,12 +727,6 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 			// 如果不是标准结构，可能是 UpstreamData 的直接 JSON?
 			var upstream UpstreamData
 			if err := json.Unmarshal(bodyBytes, &upstream); err == nil {
-				// 这种可能性较小，通常非流式会一次性返回完整结果
-				// 如果 z.ai 不支持 stream=false，那还是会返回 SSE 吗？
-				// 如果我们发了 stream=false，z.ai 可能会报错或返回普通 JSON
-				// 从之前代码看，z.ai 似乎总是用 SSE?
-				// 不，如果我们显式传 stream=false，API 应该行为不同。
-				
 				// 暂时假定 z.ai 即使 stream=false 也可能返回 SSE 格式的一次性输出，或者标准 JSON
 				// 如果是标准 JSON，通常包含 "message": { "content": "..." }
 				
@@ -740,7 +738,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 			}
 		}
 	} else {
-		// SSE 解析逻辑 (旧逻辑，但基于 bodyBytes)
+		// SSE 解析逻辑
 		scanner := bufio.NewScanner(bytes.NewReader(bodyBytes))
 		var chunks []string
 		var reasoningChunks []string
@@ -766,57 +764,9 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 				continue
 			}
 
-			// ... (原有逻辑，复用 phasing 处理) ...
-			// 由于代码太长，这里做简化复用：
-			// 实际上我们需要完整提取原来的 switch/case 逻辑。
-			// 为了代码简洁，建议提取一个处理单行 SSE 的函数。
-			// 但鉴于 multi_replace 限制，我这里先把关键提取逻辑放回。
-			
 			if upstream.Data.Phase == "done" {
 				break
 			}
-			
-			// ... 这里的逻辑与之前完全一致 ...
-            // 为避免大量代码重复，我仅保留关键提取点。
-            // 完整逻辑太复杂，建议保留之前的 handleNonStreamResponse 并只在非 SSE 时走新分支。
-            // 但 io.ReadAll 已经消费了 body。
-		}
-        // 由于 scanner 是从 bytes.NewReader 读的，逻辑可以复用。
-        // 但为了不破坏原有复杂逻辑，其实还是 revert 到 scanner(body) 比较好，但是 body 已经 read 过了。
-        // 所以必须用 bytes.NewReader。
-        
-        // **修正策略**：我不替换整个函数内容，而是恢复原来的 SSE 解析逻辑，
-        // 只是数据源变成了 bytes.NewReader(bodyBytes)。
-        // 且上面的 !isSSE 分支只处理非 SSE 情况。
-        
-        // 篇幅原因，我必须在此处完整重写 SSE 解析循环用于 parse。
-        // 或者... 其实如果用户发了 stream=false，Upstream 可能根本不返回 SSE。
-        // 那么原有逻辑 scanner.Scan() 就会直接结束（因为找不到 data: ）。
-        
-        // 所以关键是：如果 upstream 返回了普通 JSON，scanner 循环进不去，content 为空。
-	}
-    
-    // 恢复 SSE 解析循环 (针对 bodyBytes)
-    if isSSE {
-        scanner := bufio.NewScanner(bytes.NewReader(bodyBytes))
-        // ... 原有逻辑复制 ...
-        // 由于太长，我这步工具调用无法完成所有代码替换。
-        // 我应该分两步：
-        // 1. 读取 bodyBytes。
-        // 2. 如果包含 "data: "，走 SSE 解析 (重构为 processSSELine loop)。
-        // 3. 如果不包含，尝试当做 JSON 解析。
-    }
-
-    // 鉴于 replace_file_content 无法支持如此大规模的变动且不重复代码，
-    // 我选择：只在 scanner 循环后，如果 content 仍为空，且 !isSSE，则尝试当做 JSON 解析。
-    
-    // 让原来的 scanner 跑一下（针对 bytes.NewReader）。如果是普通 JSON，scan 不出 data: ，chunks 为空。
-    // 在最后补充检查。
-    
-    scanner := bufio.NewScanner(bytes.NewReader(bodyBytes))
-    // ... (保留原有变量声明)
-    
-    // ... (保留原有循环)
 
 			if upstream.Data.Phase == "thinking" && upstream.Data.DeltaContent != "" {
 				if thinkingFilter.lastPhase != "" && thinkingFilter.lastPhase != "thinking" {
@@ -854,6 +804,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 				if textBeforeBlock != "" {
 					chunks = append(chunks, textBeforeBlock)
 				}
+				// 解析图片搜索结果
 				if results := ParseImageSearchResults(editContent); len(results) > 0 {
 					pendingImageSearchMarkdown = FormatImageSearchResults(results)
 				}
@@ -917,26 +868,14 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 		fullContent = searchRefFilter.Process(fullContent) + searchRefFilter.Flush()
 		fullReasoning = strings.Join(reasoningChunks, "")
 		fullReasoning = searchRefFilter.Process(fullReasoning) + searchRefFilter.Flush()
-	} else {
-		// Try parsing as standard JSON
-		var directResp ChatCompletionResponse
-		if err := json.Unmarshal(bodyBytes, &directResp); err == nil && len(directResp.Choices) > 0 {
-			if directResp.Choices[0].Message != nil {
-				fullContent = directResp.Choices[0].Message.Content
-				fullReasoning = directResp.Choices[0].Message.ReasoningContent
-			}
-		} else {
-			// Fallback: use body as content usually for error debugging
-			LogDebug("Could not parse response as JSON, using raw body")
-			// only use raw body if it is not too large and looks like text
-			if len(bodyStr) < 2000 {
-				fullContent = bodyStr
-			}
-		}
 	}
 
 	if fullContent == "" && fullReasoning == "" {
-		LogError("Non-stream response 200 but no content received. Body preview: %s", bodyStr[:min(len(bodyStr), 200)])
+		if len(bodyStr) > 200 {
+			LogError("Non-stream response 200 but no content received. Body preview: %s...", bodyStr[:200])
+		} else {
+			LogError("Non-stream response 200 but no content received. Body preview: %s", bodyStr)
+		}
 	}
 
 	stopReason := "stop"
