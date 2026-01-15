@@ -1,16 +1,16 @@
 package pkg
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
+"encoding/json"
+"fmt"
+"net/http"
 )
 
 type AnonymousAuthResponse struct {
 	Token string `json:"token"`
 }
 
-// GetAnonymousToken �?z.ai 获取匿名 token
+// GetAnonymousToken 从 z.ai 获取匿名 token
 func GetAnonymousToken() (string, error) {
 	resp, err := http.Get("https://chat.z.ai/api/v1/auths/")
 	if err != nil {
