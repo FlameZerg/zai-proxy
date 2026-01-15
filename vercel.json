@@ -1,4 +1,13 @@
 {
+  "builds": [
+    {
+      "src": "api/index.go",
+      "use": "@vercel/go",
+      "config": {
+        "ldflags": "-s -w"
+      }
+    }
+  ],
   "rewrites": [
     {
       "source": "/v1/(.*)",

@@ -908,5 +908,7 @@ func HandleModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Edge Caching: Cache for 10 minutes, serve stale up to 1 day
+	w.Header().Set("Cache-Control", "s-maxage=600, stale-while-revalidate=86400")
 	json.NewEncoder(w).Encode(response)
 }
