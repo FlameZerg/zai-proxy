@@ -1,4 +1,4 @@
-package internal
+package pkg
 
 import (
 	"encoding/json"
@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// 基础模型映射（不包含标签后缀）
-var BaseModelMapping = map[string]string{
+// 基础模型映射（不包含标签后缀�?var BaseModelMapping = map[string]string{
 	"GLM-4.5":      "0727-360B-API",
 	"GLM-4.6":      "GLM-4-6-API-V1",
 	"GLM-4.7":      "glm-4.7",
@@ -33,13 +32,12 @@ var ModelList = []string{
 }
 
 // 解析模型名称，提取基础模型名和标签
-// 支持 -thinking 和 -search 标签的任意排列组合
-func ParseModelName(model string) (baseModel string, enableThinking bool, enableSearch bool) {
+// 支持 -thinking �?-search 标签的任意排列组�?func ParseModelName(model string) (baseModel string, enableThinking bool, enableSearch bool) {
 	enableThinking = false
 	enableSearch = false
 	baseModel = model
 
-	// 检查并移除 -thinking 和 -search 标签（任意顺序）
+	// 检查并移除 -thinking �?-search 标签（任意顺序）
 	for {
 		if strings.HasSuffix(baseModel, "-thinking") {
 			enableThinking = true
@@ -84,10 +82,9 @@ type ImageURL struct {
 	URL string `json:"url"`
 }
 
-// Message 支持纯文本和多模态内容
-type Message struct {
+// Message 支持纯文本和多模态内�?type Message struct {
 	Role    string      `json:"role"`
-	Content interface{} `json:"content"` // string 或 []ContentPart
+	Content interface{} `json:"content"` // string �?[]ContentPart
 }
 
 // 解析消息内容，返回文本和图片URL列表
@@ -116,20 +113,17 @@ func (m *Message) ParseContent() (text string, imageURLs []string) {
 	return text, imageURLs
 }
 
-// 转换为上游消息格式，支持多模态
-func (m *Message) ToUpstreamMessage(urlToFileID map[string]string) map[string]interface{} {
+// 转换为上游消息格式，支持多模�?func (m *Message) ToUpstreamMessage(urlToFileID map[string]string) map[string]interface{} {
 	text, imageURLs := m.ParseContent()
 
-	// 无图片，返回纯文本
-	if len(imageURLs) == 0 {
+	// 无图片，返回纯文�?	if len(imageURLs) == 0 {
 		return map[string]interface{}{
 			"role":    m.Role,
 			"content": text,
 		}
 	}
 
-	// 有图片，构建多模态内容
-	var content []interface{}
+	// 有图片，构建多模态内�?	var content []interface{}
 	if text != "" {
 		content = append(content, map[string]interface{}{
 			"type": "text",
@@ -205,7 +199,7 @@ type ModelInfo struct {
 }
 
 var searchRefPattern = regexp.MustCompile(`【turn\d+search(\d+)】`)
-var searchRefPrefixPattern = regexp.MustCompile(`【(t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?$`)
+var searchRefPrefixPattern = regexp.MustCompile(`�?t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?$`)
 
 type SearchResult struct {
 	Title string `json:"title"`

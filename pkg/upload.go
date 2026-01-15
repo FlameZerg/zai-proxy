@@ -1,4 +1,4 @@
-package internal
+package pkg
 
 import (
 	"bytes"
@@ -27,8 +27,7 @@ type FileUploadResponse struct {
 	} `json:"meta"`
 }
 
-// UpstreamFile 上游请求的文件格式
-type UpstreamFile struct {
+// UpstreamFile 上游请求的文件格�?type UpstreamFile struct {
 	Type   string             `json:"type"`
 	File   FileUploadResponse `json:"file"`
 	ID     string             `json:"id"`
@@ -41,15 +40,14 @@ type UpstreamFile struct {
 	Media  string             `json:"media"`
 }
 
-// UploadImageFromURL 从 URL 或 base64 上传图片到 z.ai
+// UploadImageFromURL �?URL �?base64 上传图片�?z.ai
 func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 	var imageData []byte
 	var filename string
 	var contentType string
 
 	if strings.HasPrefix(imageURL, "data:") {
-		// Base64 编码的图片
-		// 格式: data:image/jpeg;base64,/9j/4AAQ...
+		// Base64 编码的图�?		// 格式: data:image/jpeg;base64,/9j/4AAQ...
 		parts := strings.SplitN(imageURL, ",", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid base64 image format")
@@ -74,8 +72,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 			return nil, fmt.Errorf("failed to decode base64: %v", err)
 		}
 
-		// 生成文件名
-		ext := ".png"
+		// 生成文件�?		ext := ".png"
 		if strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg") {
 			ext = ".jpg"
 		} else if strings.Contains(contentType, "gif") {
@@ -85,7 +82,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 		}
 		filename = uuid.New().String()[:12] + ext
 	} else {
-		// 从 URL 下载图片
+		// �?URL 下载图片
 		resp, err := http.Get(imageURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download image: %v", err)
@@ -106,8 +103,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 			contentType = "image/png"
 		}
 
-		// 从 URL 提取文件名
-		filename = filepath.Base(imageURL)
+		// �?URL 提取文件�?		filename = filepath.Base(imageURL)
 		if filename == "" || filename == "." || filename == "/" {
 			ext := ".png"
 			if strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg") {
@@ -132,8 +128,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 
 	writer.Close()
 
-	// 发送上传请求
-	req, err := http.NewRequest("POST", "https://chat.z.ai/api/v1/files/", &buf)
+	// 发送上传请�?	req, err := http.NewRequest("POST", "https://chat.z.ai/api/v1/files/", &buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload request: %v", err)
 	}
