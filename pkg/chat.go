@@ -170,14 +170,7 @@ var bufferPool = sync.Pool{
 	},
 }
 
-var httpClient = &http.Client{
-	Timeout: 300 * time.Second, // Long timeout for streaming
-	Transport: &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
-	},
-}
+
 
 type UpstreamData struct {
 	Type string `json:"type"`
