@@ -685,6 +685,7 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 	flusher.Flush()
 }
 
+func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionID, modelName string) {
 	bodyBytes, _ := io.ReadAll(body)
 	if len(bodyBytes) == 0 {
 		LogError("Non-stream response 200 but empty body")
