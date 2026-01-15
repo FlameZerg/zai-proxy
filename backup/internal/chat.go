@@ -1,4 +1,4 @@
-package pkg
+package internal
 
 import (
 	"bufio"
@@ -305,17 +305,8 @@ func HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 
 	completionID := fmt.Sprintf("chatcmpl-%s", uuid.New().String()[:29])
 
-	// Vercel compatibility: Check explicitly if streaming is supported
-	// If Flusher is NOT supported, force non-streaming fallback
 	if req.Stream {
-		if _, ok := w.(http.Flusher); ok {
-			handleStreamResponse(w, resp.Body, completionID, modelName)
-		} else {
-			// Fallback to non-streaming logic even if client requested stream
-			// This works because makeUpstreamRequest ALWAYS sets stream=true, 
-			// and handleNonStreamResponse correctly consumes the SSE stream.
-			handleNonStreamResponse(w, resp.Body, completionID, modelName)
-		}
+		handleStreamResponse(w, resp.Body, completionID, modelName)
 	} else {
 		handleNonStreamResponse(w, resp.Body, completionID, modelName)
 	}
@@ -328,8 +319,7 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		// This should have been caught in HandleChatCompletions, but double check
-		handleNonStreamResponse(w, body, completionID, modelName)
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
 		return
 	}
 

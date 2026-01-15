@@ -1,4 +1,4 @@
-package pkg
+package internal
 
 import (
 	"encoding/json"
@@ -70,8 +70,6 @@ func GetTargetModel(model string) string {
 	if target, ok := BaseModelMapping[baseModel]; ok {
 		return target
 	}
-	// Default fallback to the model name itself if no mapping found
-	// (User requested this change in diff Step 338, maintaining it)
 	return model
 }
 
@@ -207,7 +205,7 @@ type ModelInfo struct {
 }
 
 var searchRefPattern = regexp.MustCompile(`【turn\d+search(\d+)】`)
-var searchRefPrefixPattern = regexp.MustCompile(`【(t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?)?$`)
+var searchRefPrefixPattern = regexp.MustCompile(`【(t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?$`)
 
 type SearchResult struct {
 	Title string `json:"title"`
