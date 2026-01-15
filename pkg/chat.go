@@ -139,13 +139,22 @@ func makeUpstreamRequest(token string, messages []Message, model string) (*http.
 	req.Header.Set("Referer", fmt.Sprintf("https://chat.z.ai/c/%s", uuid.New().String()))
 	req.Header.Set("User-Agent", uarand.GetRandom())
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Use global client to reuse connections
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, "", err
 	}
 
 	return resp, targetModel, nil
+}
+
+var httpClient = &http.Client{
+	Timeout: 300 * time.Second, // Long timeout for streaming
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	},
 }
 
 type UpstreamData struct {
