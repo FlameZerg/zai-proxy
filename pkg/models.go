@@ -59,7 +59,7 @@ func GetTargetModel(model string) string {
 	if target, ok := BaseModelMapping[baseModel]; ok {
 		return target
 	}
-	return "GLM-4-6-API-V1"
+	return model
 }
 
 func IsThinkingModel(model string) bool {
