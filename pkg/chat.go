@@ -789,6 +789,8 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 						content = afterDetails
 					}
 				}
+			} else {
+				content = editContent
 			}
 		} else if (upstream.Data.Phase == "other" || upstream.Data.Phase == "tool_call") && editContent != "" {
 			content = editContent
@@ -804,7 +806,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 	fullReasoning := strings.Join(reasoningChunks, "")
 	fullReasoning = searchRefFilter.Process(fullReasoning) + searchRefFilter.Flush()
 
-	if fullContent == "" {
+	if fullContent == "" && fullReasoning == "" {
 		LogError("Non-stream response 200 but no content received")
 	}
 
