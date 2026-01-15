@@ -314,10 +314,10 @@ func HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 			// Fallback to non-streaming logic even if client requested stream
 			// This works because makeUpstreamRequest ALWAYS sets stream=true, 
 			// and handleNonStreamResponse correctly consumes the SSE stream.
-			handleNonStreamResponse(w, resp.Body, completionID, modelName)
+			handleNonStreamResponse(w, resp.Body, completionID, modelName, true)
 		}
 	} else {
-		handleNonStreamResponse(w, resp.Body, completionID, modelName)
+		handleNonStreamResponse(w, resp.Body, completionID, modelName, false)
 	}
 }
 
@@ -329,7 +329,7 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		// This should have been caught in HandleChatCompletions, but double check
-		handleNonStreamResponse(w, body, completionID, modelName)
+		handleNonStreamResponse(w, body, completionID, modelName, true)
 		return
 	}
 
@@ -677,27 +677,8 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 	flusher.Flush()
 }
 
-func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionID, modelName string) {
-	// Read full body first for debugging (Vercel buffers anyway)
-	bodyBytes, err := io.ReadAll(body)
-	if err != nil {
-		LogError("Failed to read upstream body: %v", err)
-		http.Error(w, "Failed to read upstream body", http.StatusInternalServerError)
-		return
-	}
-	body.Close() // Close original body
-	
-	// Debug logging
-	bodyStr := string(bodyBytes)
-	LogInfo("Upstream response size: %d bytes", len(bodyBytes))
-	if len(bodyStr) > 500 {
-		LogInfo("Upstream response prefix: %s", bodyStr[:500])
-	} else {
-		LogInfo("Upstream response full: %s", bodyStr)
-	}
-
-	// Re-create reader for scanner
-	scanner := bufio.NewScanner(bytes.NewReader(bodyBytes))
+func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionID, modelName string, isStreamRequest bool) {
+	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	var chunks []string
 	var reasoningChunks []string
@@ -706,17 +687,12 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 	hasThinking := false
 	pendingSourcesMarkdown := ""
 	pendingImageSearchMarkdown := ""
-	
-	lineCount := 0
-	dataLineCount := 0
 
 	for scanner.Scan() {
-		lineCount++
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-		dataLineCount++
 
 		payload := strings.TrimPrefix(line, "data: ")
 		if payload == "[DONE]" {
@@ -831,32 +807,65 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 	fullReasoning := strings.Join(reasoningChunks, "")
 	fullReasoning = searchRefFilter.Process(fullReasoning) + searchRefFilter.Flush()
 
-	LogInfo("Parsing complete. Lines: %d, DataLines: %d, Chunks: %d, ContentLen: %d, ReasoningLen: %d", 
-		lineCount, dataLineCount, len(chunks), len(fullContent), len(fullReasoning))
-
-	if fullContent == "" && fullReasoning == "" {
-		LogError("Non-stream response 200 but no content received")
+	if fullContent == "" {
+		if fullReasoning != "" {
+			// If we only have reasoning, that's fine, proceed.
+		} else {
+			LogError("Non-stream response 200 but no content received")
+		}
 	}
 
 	stopReason := "stop"
-	response := ChatCompletionResponse{
-		ID:      completionID,
-		Object:  "chat.completion",
-		Created: time.Now().Unix(),
-		Model:   modelName,
-		Choices: []Choice{{
-			Index: 0,
-			Message: &MessageResp{
-				Role:             "assistant",
-				Content:          fullContent,
-				ReasoningContent: fullReasoning,
-			},
-			FinishReason: &stopReason,
-		}},
-	}
+	
+	if isStreamRequest {
+		// Simulate streaming response
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+		chunk := ChatCompletionChunk{
+			ID:      completionID,
+			Object:  "chat.completion.chunk",
+			Created: time.Now().Unix(),
+			Model:   modelName,
+			Choices: []Choice{{
+				Index: 0,
+				Delta: Delta{
+					Content:          fullContent,
+					ReasoningContent: fullReasoning,
+				},
+				FinishReason: &stopReason,
+			}},
+		}
+		
+		data, _ := json.Marshal(chunk)
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		fmt.Fprintf(w, "data: [DONE]\n\n")
+		// Try flush if possible, though likely not supported here
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+	} else {
+		// Standard JSON response
+		response := ChatCompletionResponse{
+			ID:      completionID,
+			Object:  "chat.completion",
+			Created: time.Now().Unix(),
+			Model:   modelName,
+			Choices: []Choice{{
+				Index: 0,
+				Message: &MessageResp{
+					Role:             "assistant",
+					Content:          fullContent,
+					ReasoningContent: fullReasoning,
+				},
+				FinishReason: &stopReason,
+			}},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
 }
 
 func HandleModels(w http.ResponseWriter, r *http.Request) {
