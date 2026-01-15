@@ -1,0 +1,6 @@
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] Antigravity-Proxy DLL 已加载 (模拟 version.dll)
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] 使用配置文件路径: D:\Programming\Antigravity\config.json
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] 已加载目标进程列表, 共 2 项
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] 配置: proxy=127.0.0.1:7890 type=socks5, fake_ip=true, child_injection=true, traffic_logging=false
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] 配置加载成功。
+[2026-01-15 20:58:04] [PID:16596][TID:11940] [信息] 所有 API Hook 安装成功 (Phase 1-3)
