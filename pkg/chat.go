@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -439,9 +440,9 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 					}
 					data, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", data)
-	if flusher != nil {
-		flusher.Flush()
-	}
+					if flusher != nil {
+						flusher.Flush()
+					}
 				}
 			}
 			if results := ParseImageSearchResults(editContent); len(results) > 0 {
@@ -468,9 +469,9 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 					}
 					data, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", data)
-	if flusher != nil {
-		flusher.Flush()
-	}
+					if flusher != nil {
+						flusher.Flush()
+					}
 				}
 			}
 			continue
@@ -696,7 +697,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 	// 尝试直接解析为完整 JSON (当 stream=false 时)
 	// z.ai 非流式响应结构需要确认，这里假设与 OpenAI 格式类似，或我们需要解析 UpstreamData 的变体
 	// 如果 Upstream 返回普通 JSON，则不是 SSE 格式 (data: ...)
-	
+
 	// 为了兼容，我们先检查是否是 SSE
 	bodyStr := string(bodyBytes)
 	isSSE := strings.Contains(bodyStr, "data: ")
@@ -713,7 +714,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 		} else {
 			LogDebug("Received non-sse response: %s", bodyStr)
 		}
-		
+
 		// 尝试解析常见结构
 		// 假设返回结构体包含 choices...
 		var directResp ChatCompletionResponse
@@ -729,7 +730,7 @@ func handleNonStreamResponse(w http.ResponseWriter, body io.ReadCloser, completi
 			if err := json.Unmarshal(bodyBytes, &upstream); err == nil {
 				// 暂时假定 z.ai 即使 stream=false 也可能返回 SSE 格式的一次性输出，或者标准 JSON
 				// 如果是标准 JSON，通常包含 "message": { "content": "..." }
-				
+
 				// 兜底：如果没有解析出内容，就把整个 body作为 content 返回，方便调试
 				// 除非显然是错误的
 				if fullContent == "" {

@@ -1,9 +1,9 @@
 package pkg
 
 import (
-"encoding/json"
-"fmt"
-"net/http"
+	"encoding/json"
+	"fmt"
+	"net/http"
 )
 
 type AnonymousAuthResponse struct {
