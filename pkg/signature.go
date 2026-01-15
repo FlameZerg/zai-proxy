@@ -20,7 +20,8 @@ func GenerateSignature(userID, requestID, userContent string, timestamp int64) s
 	signData := fmt.Sprintf("%s|%s|%d", requestInfo, contentBase64, timestamp)
 
 	period := timestamp / (5 * 60 * 1000)
-	// 两次加密均返�?hex 字符�?	firstHmac := hmacSha256Hex([]byte("key-@@@@)))()((9))-xxxx&&&%%%%%"), fmt.Sprintf("%d", period))
+	// Encrypt twice and return hex string
+	firstHmac := hmacSha256Hex([]byte("key-@@@@)))()((9))-xxxx&&&%%%%%"), fmt.Sprintf("%d", period))
 	signature := hmacSha256Hex([]byte(firstHmac), signData)
 
 	// LogDebug("[Signature] requestInfo=%s", requestInfo)

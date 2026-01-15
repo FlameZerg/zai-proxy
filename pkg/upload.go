@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// FileUploadResponse z.ai 文件上传响应
+// FileUploadResponse z.ai file upload response
 type FileUploadResponse struct {
 	ID       string `json:"id"`
 	UserID   string `json:"user_id"`
@@ -27,7 +27,8 @@ type FileUploadResponse struct {
 	} `json:"meta"`
 }
 
-// UpstreamFile 上游请求的文件格�?type UpstreamFile struct {
+// UpstreamFile upstream request file format
+type UpstreamFile struct {
 	Type   string             `json:"type"`
 	File   FileUploadResponse `json:"file"`
 	ID     string             `json:"id"`
@@ -40,20 +41,21 @@ type FileUploadResponse struct {
 	Media  string             `json:"media"`
 }
 
-// UploadImageFromURL �?URL �?base64 上传图片�?z.ai
+// UploadImageFromURL uploads image from URL or base64 to z.ai
 func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 	var imageData []byte
 	var filename string
 	var contentType string
 
 	if strings.HasPrefix(imageURL, "data:") {
-		// Base64 编码的图�?		// 格式: data:image/jpeg;base64,/9j/4AAQ...
+		// Base64 encoded image
+		// Format: data:image/jpeg;base64,/9j/4AAQ...
 		parts := strings.SplitN(imageURL, ",", 2)
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid base64 image format")
 		}
 
-		// 解析 MIME 类型
+		// Parse MIME type
 		header := parts[0] // data:image/jpeg;base64
 		if idx := strings.Index(header, ":"); idx != -1 {
 			mimeAndEncoding := header[idx+1:]
@@ -65,14 +67,15 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 			contentType = "image/png"
 		}
 
-		// 解码 base64
+		// Decode base64
 		var err error
 		imageData, err = base64.StdEncoding.DecodeString(parts[1])
 		if err != nil {
 			return nil, fmt.Errorf("failed to decode base64: %v", err)
 		}
 
-		// 生成文件�?		ext := ".png"
+		// Generate filename
+		ext := ".png"
 		if strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg") {
 			ext = ".jpg"
 		} else if strings.Contains(contentType, "gif") {
@@ -82,7 +85,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 		}
 		filename = uuid.New().String()[:12] + ext
 	} else {
-		// �?URL 下载图片
+		// Download image from URL
 		resp, err := http.Get(imageURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download image: %v", err)
@@ -103,7 +106,8 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 			contentType = "image/png"
 		}
 
-		// �?URL 提取文件�?		filename = filepath.Base(imageURL)
+		// Extract filename from URL
+		filename = filepath.Base(imageURL)
 		if filename == "" || filename == "." || filename == "/" {
 			ext := ".png"
 			if strings.Contains(contentType, "jpeg") || strings.Contains(contentType, "jpg") {
@@ -113,7 +117,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 		}
 	}
 
-	// 构建 multipart form 请求
+	// Build multipart form request
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 
@@ -128,7 +132,8 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 
 	writer.Close()
 
-	// 发送上传请�?	req, err := http.NewRequest("POST", "https://chat.z.ai/api/v1/files/", &buf)
+	// Send upload request
+	req, err := http.NewRequest("POST", "https://chat.z.ai/api/v1/files/", &buf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create upload request: %v", err)
 	}
@@ -155,7 +160,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 		return nil, fmt.Errorf("failed to parse upload response: %v", err)
 	}
 
-	// 构建上游文件格式
+	// Build upstream file format
 	return &UpstreamFile{
 		Type:   "image",
 		File:   uploadResp,
@@ -170,7 +175,7 @@ func UploadImageFromURL(token string, imageURL string) (*UpstreamFile, error) {
 	}, nil
 }
 
-// UploadImages 批量上传图片
+// UploadImages batch uploads images
 func UploadImages(token string, imageURLs []string) ([]*UpstreamFile, error) {
 	var files []*UpstreamFile
 	for _, url := range imageURLs {
