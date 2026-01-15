@@ -319,8 +319,18 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
-		return
+		// Vercel Go Runtime does not support http.Flusher.
+		// Fallback to non-stream response to avoid 500 error.
+		// Although the client requested stream, we return a standard JSON response
+		// but formatted as SSE to keep compatibility if possible, OR just fail gracefully.
+		// Better approach: Since we cannot stream, we must collect all data and send it at once.
+		// However, handleStreamResponse architecture is designed for streaming.
+		// We should redirect to handleNonStreamResponse or buffer everything here.
+		
+		// Let's degrade gracefully:
+		// If we can't flush, we just write normally. The client will receive the whole body at the end.
+		// This defeats the purpose of "stream" but allows the request to succeed on Vercel.
+		LogInfo("Streaming not supported (http.Flusher failed), falling back to buffered response")
 	}
 
 	scanner := bufio.NewScanner(body)
@@ -425,7 +435,9 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 					}
 					data, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", data)
-					flusher.Flush()
+	if flusher != nil {
+		flusher.Flush()
+	}
 				}
 			}
 			if results := ParseImageSearchResults(editContent); len(results) > 0 {
@@ -452,7 +464,9 @@ func handleStreamResponse(w http.ResponseWriter, body io.ReadCloser, completionI
 					}
 					data, _ := json.Marshal(chunk)
 					fmt.Fprintf(w, "data: %s\n\n", data)
-					flusher.Flush()
+	if flusher != nil {
+		flusher.Flush()
+	}
 				}
 			}
 			continue
