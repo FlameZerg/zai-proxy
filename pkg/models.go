@@ -207,7 +207,7 @@ type ModelInfo struct {
 }
 
 var searchRefPattern = regexp.MustCompile(`【turn\d+search(\d+)】`)
-var searchRefPrefixPattern = regexp.MustCompile(`【(t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?)?$`)
+var searchRefPrefixPattern = regexp.MustCompile(`【(?:t(?:u(?:r(?:n(?:\d+(?:s(?:e(?:a(?:r(?:c(?:h(?:\d+)?)?)?)?)?)?)?)?)?)?)?)?)?$`)
 
 type SearchResult struct {
 	Title string `json:"title"`
