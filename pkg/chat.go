@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/corpix/uarand"
@@ -33,7 +34,7 @@ func extractAllImageURLs(messages []Message) []string {
 	return allImageURLs
 }
 
-func makeUpstreamRequest(token string, messages []Message, model string) (*http.Response, string, error) {
+func makeUpstreamRequest(token string, messages []Message, model string, r *http.Request) (*http.Response, string, error) {
 	payload, err := DecodeJWTPayload(token)
 	if err != nil || payload == nil {
 		return nil, "", fmt.Errorf("invalid token")
@@ -139,6 +140,9 @@ func makeUpstreamRequest(token string, messages []Message, model string) (*http.
 	req.Header.Set("Referer", fmt.Sprintf("https://chat.z.ai/c/%s", uuid.New().String()))
 	req.Header.Set("User-Agent", uarand.GetRandom())
 
+	// Pass original request context for timeout/cancellation
+	req = req.WithContext(r.Context())
+
 	// Use global client to reuse connections
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -146,6 +150,24 @@ func makeUpstreamRequest(token string, messages []Message, model string) (*http.
 	}
 
 	return resp, targetModel, nil
+}
+
+// Global HTTP client for connection pooling
+var httpClient = &http.Client{
+	Timeout: 300 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
+// Buffer pool to reduce GC pressure on heavy buffering
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		// Pre-allocate 64KB buffer
+		return bytes.NewBuffer(make([]byte, 0, 64*1024))
+	},
 }
 
 var httpClient = &http.Client{
@@ -293,7 +315,7 @@ func HandleChatCompletions(w http.ResponseWriter, r *http.Request) {
 		req.Model = "GLM-4.6"
 	}
 
-	resp, modelName, err := makeUpstreamRequest(token, req.Messages, req.Model)
+	resp, modelName, err := makeUpstreamRequest(token, req.Messages, req.Model, r)
 	if err != nil {
 		LogError("Upstream request failed: %v", err)
 		http.Error(w, "Upstream error", http.StatusBadGateway)
