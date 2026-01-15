@@ -261,20 +261,81 @@ func (f *SearchRefFilter) Process(content string) string {
 		return ""
 	}
 
-	maxPrefixLen := 20
+	maxPrefixLen := 30 // Increased buffer slightly
 	if len(content) < maxPrefixLen {
 		maxPrefixLen = len(content)
 	}
 
-	for i := 1; i <= maxPrefixLen; i++ {
+	// Iterate from longest possible prefix down to shortest
+	for i := maxPrefixLen; i >= 1; i-- {
 		suffix := content[len(content)-i:]
-		if searchRefPrefixPattern.MatchString(suffix) {
+		// Use manual check instead of regex to avoid recursion limit panic
+		if isPotentialRefPrefix(suffix) {
 			f.buffer = suffix
 			return content[:len(content)-i]
 		}
 	}
 
 	return content
+}
+
+// isPotentialRefPrefix checks if the string s is a potential prefix of a search reference tag.
+// Structure: 【turn\d+search\d+】
+// Prefix examples: 【, 【t, 【turn, 【turn1, 【turn12, 【turn12s, 【turn12search, ...
+func isPotentialRefPrefix(s string) bool {
+	if s == "" {
+		return false
+	}
+	
+	// Must start with 【
+	prefixTag := "【"
+	if len(s) < len(prefixTag) {
+		return strings.HasPrefix(prefixTag, s)
+	}
+	if !strings.HasPrefix(s, prefixTag) {
+		return false
+	}
+	rest := s[len(prefixTag):]
+	
+	// Phase 1: "turn"
+	expectedTurn := "turn"
+	if len(rest) <= len(expectedTurn) {
+		return strings.HasPrefix(expectedTurn, rest)
+	}
+	if !strings.HasPrefix(rest, expectedTurn) {
+		return false
+	}
+	rest = rest[len(expectedTurn):]
+	
+	// Phase 2: Digits after turn
+	hadTurnDigits := false
+	for len(rest) > 0 && rest[0] >= '0' && rest[0] <= '9' {
+		hadTurnDigits = true
+		rest = rest[1:]
+	}
+	if len(rest) == 0 {
+		return true // Valid prefix ending in digits
+	}
+	if !hadTurnDigits {
+		return false // "turn" followed by non-digit
+	}
+	
+	// Phase 3: "search"
+	expectedSearch := "search"
+	if len(rest) <= len(expectedSearch) {
+		return strings.HasPrefix(expectedSearch, rest)
+	}
+	if !strings.HasPrefix(rest, expectedSearch) {
+		return false
+	}
+	rest = rest[len(expectedSearch):]
+	
+	// Phase 4: Digits after search
+	for len(rest) > 0 && rest[0] >= '0' && rest[0] <= '9' {
+		rest = rest[1:]
+	}
+	
+	return len(rest) == 0
 }
 
 func (f *SearchRefFilter) Flush() string {
