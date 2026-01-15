@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// 基础模型映射（不包含标签后缀）
+// Base model mapping (no suffix)
 var BaseModelMapping = map[string]string{
 	"GLM-4.5":      "0727-360B-API",
 	"GLM-4.6":      "GLM-4-6-API-V1",
@@ -207,7 +207,9 @@ type ModelInfo struct {
 }
 
 var searchRefPattern = regexp.MustCompile(`【turn\d+search(\d+)】`)
-var searchRefPrefixPattern = regexp.MustCompile(`【(?:t(?:u(?:r(?:n(?:\d+(?:s(?:e(?:a(?:r(?:c(?:h(?:\d+)?)?)?)?)?)?)?)?)?)?)?)?)?$`)
+
+// REMOVED searchRefPrefixPattern due to recursion/panic issues on Vercel
+// var searchRefPrefixPattern = regexp.MustCompile(`...`)
 
 type SearchResult struct {
 	Title string `json:"title"`
