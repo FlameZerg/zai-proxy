@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// 基础模型映射（不包含标签后缀）
+// Base model mapping (no suffix)
 var BaseModelMapping = map[string]string{
 	"GLM-4.5":      "0727-360B-API",
 	"GLM-4.6":      "GLM-4-6-API-V1",
@@ -18,7 +18,7 @@ var BaseModelMapping = map[string]string{
 	"0808-360B-DR": "0808-360B-DR",
 }
 
-// v1/models 返回的模型列表（不包含所有标签组合）
+// v1/models list
 var ModelList = []string{
 	"GLM-4.5",
 	"GLM-4.6",
@@ -32,14 +32,12 @@ var ModelList = []string{
 	// "0808-360B-DR",
 }
 
-// 解析模型名称，提取基础模型名和标签
-// 支持 -thinking 和 -search 标签的任意排列组合
+// Parse model name, extract base model and tags
 func ParseModelName(model string) (baseModel string, enableThinking bool, enableSearch bool) {
 	enableThinking = false
 	enableSearch = false
 	baseModel = model
 
-	// 检查并移除 -thinking 和 -search 标签（任意顺序）
 	for {
 		if strings.HasSuffix(baseModel, "-thinking") {
 			enableThinking = true
@@ -55,26 +53,127 @@ func ParseModelName(model string) (baseModel string, enableThinking bool, enable
 	return baseModel, enableThinking, enableSearch
 }
 
-// 获取目标模型 ID（用于上游请求）
+// Get target model ID for upstream
 func GetTargetModel(model string) string {
 	baseModel, _, _ := ParseModelName(model)
 	if target, ok := BaseModelMapping[baseModel]; ok {
 		return target
 	}
-	// 默认回退
 	return "GLM-4-6-API-V1"
 }
 
-// 判断是否为思考模型
 func IsThinkingModel(model string) bool {
 	_, enableThinking, _ := ParseModelName(model)
 	return enableThinking
 }
 
-// 判断是否为搜索模型
 func IsSearchModel(model string) bool {
 	_, _, enableSearch := ParseModelName(model)
 	return enableSearch
+}
+
+// --- Types for Chat API ---
+
+type Message struct {
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"` // string or []ContentPart
+}
+
+type ContentPart struct {
+	Type     string            `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	ImageURL map[string]string `json:"image_url,omitempty"` // {"url": "..."}
+}
+
+// ParseContent extracts text and image URLs from the message content
+func (m *Message) ParseContent() (string, []string) {
+	var text string
+	var images []string
+
+	switch v := m.Content.(type) {
+	case string:
+		return v, nil
+	case []interface{}:
+		for _, item := range v {
+			if mapItem, ok := item.(map[string]interface{}); ok {
+				if typeVal, ok := mapItem["type"].(string); ok {
+					if typeVal == "text" {
+						if s, ok := mapItem["text"].(string); ok {
+							text += s
+						}
+					} else if typeVal == "image_url" {
+						if urlMap, ok := mapItem["image_url"].(map[string]interface{}); ok {
+							if url, ok := urlMap["url"].(string); ok {
+								images = append(images, url)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return text, images
+}
+
+// ToUpstreamMessage converts the message for the upstream API
+func (m *Message) ToUpstreamMessage(urlToFileID map[string]string) map[string]interface{} {
+	text, _ := m.ParseContent()
+	return map[string]interface{}{
+		"role":    m.Role,
+		"content": text,
+	}
+}
+
+type ChatRequest struct {
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+	Stream   bool      `json:"stream"`
+}
+
+type ChatCompletionChunk struct {
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
+}
+
+type ChatCompletionResponse struct {
+	ID      string   `json:"id"`
+	Object  string   `json:"object"`
+	Created int64    `json:"created"`
+	Model   string   `json:"model"`
+	Choices []Choice `json:"choices"`
+}
+
+type Choice struct {
+	Index        int          `json:"index"`
+	Delta        Delta        `json:"delta,omitempty"`   // for stream
+	Message      *MessageResp `json:"message,omitempty"` // for non-stream
+	FinishReason *string      `json:"finish_reason"`
+}
+
+type Delta struct {
+	Content          string `json:"content,omitempty"`
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+	Role             string `json:"role,omitempty"`
+}
+
+type MessageResp struct {
+	Role             string `json:"role"`
+	Content          string `json:"content"`
+	ReasoningContent string `json:"reasoning_content,omitempty"`
+}
+
+type ModelInfo struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	OwnedBy string `json:"owned_by"`
+}
+
+type ModelsResponse struct {
+	Object string      `json:"object"`
+	Data   []ModelInfo `json:"data"`
 }
 
 // --- Search Result Handling ---
@@ -87,9 +186,9 @@ type SearchResult struct {
 }
 
 type SearchRefFilter struct {
-	searchResults   map[string]SearchResult
+	searchResults    map[string]SearchResult
 	searchRefPattern *regexp.Regexp
-	buffer          string
+	buffer           string
 }
 
 func NewSearchRefFilter() *SearchRefFilter {
@@ -107,13 +206,6 @@ func (f *SearchRefFilter) AddSearchResults(results []SearchResult) {
 
 func (f *SearchRefFilter) Process(text string) string {
 	f.buffer += text
-	// buffer strategy to handle split tokens if needed, but for now simple regex replace on whole chunks
-	// To be safe against split tokens like "[ref" + "_1]", we might need buffering.
-	// But assuming tokens come in reasonably complete chunks for now.
-	// Actually, just buffering everything might be too much memory if stream is long.
-	// Let's implement a simple buffer flush on newlines or length.
-	
-	// Simply process buffer immediately for this implementation unless we suspect split token
 	return f.flushBuffer(false)
 }
 
@@ -127,12 +219,14 @@ func (f *SearchRefFilter) flushBuffer(force bool) string {
 	if result != "" {
 		result = f.searchRefPattern.ReplaceAllStringFunc(result, func(match string) string {
 			runes := []rune(match)
-			if len(runes) < 3 { return match } // Should not happen with regex
-			refID := string(runes[1 : len(runes)-1]) // strip [ and ]
+			if len(runes) < 3 {
+				return match
+			}
+			refID := string(runes[1 : len(runes)-1])
 			if r, ok := f.searchResults[refID]; ok {
 				return fmt.Sprintf(`[\[%d\]](%s)`, r.Index, r.URL)
 			}
-			return "" // Remove unknown ref tags or keep them? Original code returned ""
+			return ""
 		})
 	}
 	return result
@@ -183,7 +277,6 @@ func ParseSearchResults(editContent string) []SearchResult {
 	}
 
 	startIdx := idx + len(searchResultKey)
-	// Find start of array
 	for startIdx < len(editContent) && editContent[startIdx] != '[' {
 		startIdx++
 	}
@@ -239,7 +332,6 @@ func IsSearchToolCall(editContent string, phase string) bool {
 	if phase != "tool_call" {
 		return false
 	}
-	// tool_call 阶段包含 mcp 相关内容的都跳过
 	return strings.Contains(editContent, `"mcp"`) || strings.Contains(editContent, `mcp-server`)
 }
 
@@ -257,7 +349,6 @@ func ParseImageSearchResults(editContent string) []ImageSearchResult {
 	}
 
 	startIdx := idx + len(resultKey)
-	// Find start of array
 	for startIdx < len(editContent) && editContent[startIdx] != '[' {
 		startIdx++
 	}
@@ -271,23 +362,19 @@ func ParseImageSearchResults(editContent string) []ImageSearchResult {
 	escapeNext := false
 	for endIdx < len(editContent) {
 		ch := editContent[endIdx]
-
 		if escapeNext {
 			escapeNext = false
 			endIdx++
 			continue
 		}
-
 		if ch == '\\' {
 			escapeNext = true
 			endIdx++
 			continue
 		}
-
 		if ch == '"' {
 			inString = !inString
 		}
-
 		if !inString {
 			if ch == '[' || ch == '{' {
 				bracketCount++
@@ -330,7 +417,6 @@ func ParseImageSearchResults(editContent string) []ImageSearchResult {
 
 func parseImageSearchText(text string) ImageSearchResult {
 	result := ImageSearchResult{}
-
 	if titleIdx := strings.Index(text, "Title: "); titleIdx != -1 {
 		titleStart := titleIdx + len("Title: ")
 		titleEnd := strings.Index(text[titleStart:], ";")
@@ -338,7 +424,6 @@ func parseImageSearchText(text string) ImageSearchResult {
 			result.Title = strings.TrimSpace(text[titleStart : titleStart+titleEnd])
 		}
 	}
-
 	if linkIdx := strings.Index(text, "Link: "); linkIdx != -1 {
 		linkStart := linkIdx + len("Link: ")
 		linkEnd := strings.Index(text[linkStart:], ";")
@@ -348,12 +433,10 @@ func parseImageSearchText(text string) ImageSearchResult {
 			result.Link = strings.TrimSpace(text[linkStart:])
 		}
 	}
-
 	if thumbnailIdx := strings.Index(text, "Thumbnail: "); thumbnailIdx != -1 {
 		thumbnailStart := thumbnailIdx + len("Thumbnail: ")
 		result.Thumbnail = strings.TrimSpace(text[thumbnailStart:])
 	}
-
 	return result
 }
 
@@ -361,7 +444,6 @@ func FormatImageSearchResults(results []ImageSearchResult) string {
 	if len(results) == 0 {
 		return ""
 	}
-
 	var sb strings.Builder
 	for _, r := range results {
 		escapedTitle := strings.ReplaceAll(r.Title, `[`, `\[`)
