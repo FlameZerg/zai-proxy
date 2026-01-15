@@ -1,4 +1,4 @@
-package pkg
+﻿package pkg
 
 import (
 	"encoding/json"
@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// 基础模型映射（不包含标签后缀�?var BaseModelMapping = map[string]string{
+// 基础模型映射
+var BaseModelMapping = map[string]string{
 	"GLM-4.5":      "0727-360B-API",
 	"GLM-4.6":      "GLM-4-6-API-V1",
 	"GLM-4.7":      "glm-4.7",
@@ -17,8 +18,8 @@ import (
 	"0808-360B-DR": "0808-360B-DR",
 }
 
-// v1/models 返回的模型列表（不包含所有标签组合）
-var ModelList = []string{
+// v1/models 杩斿洖鐨勬ā鍨嬪垪琛紙涓嶅寘鍚墍鏈夋爣绛剧粍鍚堬級
+// v1/models 返回的模型列表
 	"GLM-4.5",
 	"GLM-4.6",
 	"GLM-4.7",
@@ -31,13 +32,13 @@ var ModelList = []string{
 	// "0808-360B-DR",
 }
 
-// 解析模型名称，提取基础模型名和标签
-// 支持 -thinking �?-search 标签的任意排列组�?func ParseModelName(model string) (baseModel string, enableThinking bool, enableSearch bool) {
+// 瑙ｆ瀽妯″瀷鍚嶇О锛屾彁鍙栧熀纭€妯″瀷鍚嶅拰鏍囩
+// 鏀寔 -thinking 鍜?-search 鏍囩鐨勪换鎰忔帓鍒楃粍鍚?func ParseModelName(model string) (baseModel string, enableThinking bool, enableSearch bool) {
 	enableThinking = false
 	enableSearch = false
 	baseModel = model
 
-	// 检查并移除 -thinking �?-search 标签（任意顺序）
+	// 妫€鏌ュ苟绉婚櫎 -thinking 鍜?-search 鏍囩锛堜换鎰忛『搴忥級
 	for {
 		if strings.HasSuffix(baseModel, "-thinking") {
 			enableThinking = true
@@ -71,7 +72,7 @@ func GetTargetModel(model string) string {
 	return model
 }
 
-// OpenAI 格式的消息内容项
+// OpenAI 鏍煎紡鐨勬秷鎭唴瀹归」
 type ContentPart struct {
 	Type     string    `json:"type"`
 	Text     string    `json:"text,omitempty"`
@@ -82,12 +83,12 @@ type ImageURL struct {
 	URL string `json:"url"`
 }
 
-// Message 支持纯文本和多模态内�?type Message struct {
+// Message 鏀寔绾枃鏈拰澶氭ā鎬佸唴瀹?type Message struct {
 	Role    string      `json:"role"`
-	Content interface{} `json:"content"` // string �?[]ContentPart
+	Content interface{} `json:"content"` // string 鎴?[]ContentPart
 }
 
-// 解析消息内容，返回文本和图片URL列表
+// 瑙ｆ瀽娑堟伅鍐呭锛岃繑鍥炴枃鏈拰鍥剧墖URL鍒楄〃
 func (m *Message) ParseContent() (text string, imageURLs []string) {
 	switch content := m.Content.(type) {
 	case string:
@@ -113,17 +114,17 @@ func (m *Message) ParseContent() (text string, imageURLs []string) {
 	return text, imageURLs
 }
 
-// 转换为上游消息格式，支持多模�?func (m *Message) ToUpstreamMessage(urlToFileID map[string]string) map[string]interface{} {
+// 杞崲涓轰笂娓告秷鎭牸寮忥紝鏀寔澶氭ā鎬?func (m *Message) ToUpstreamMessage(urlToFileID map[string]string) map[string]interface{} {
 	text, imageURLs := m.ParseContent()
 
-	// 无图片，返回纯文�?	if len(imageURLs) == 0 {
+	// 鏃犲浘鐗囷紝杩斿洖绾枃鏈?	if len(imageURLs) == 0 {
 		return map[string]interface{}{
 			"role":    m.Role,
 			"content": text,
 		}
 	}
 
-	// 有图片，构建多模态内�?	var content []interface{}
+	// 鏈夊浘鐗囷紝鏋勫缓澶氭ā鎬佸唴瀹?	var content []interface{}
 	if text != "" {
 		content = append(content, map[string]interface{}{
 			"type": "text",
@@ -198,8 +199,8 @@ type ModelInfo struct {
 	OwnedBy string `json:"owned_by"`
 }
 
-var searchRefPattern = regexp.MustCompile(`【turn\d+search(\d+)】`)
-var searchRefPrefixPattern = regexp.MustCompile(`�?t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?$`)
+var searchRefPattern = regexp.MustCompile(`銆恡urn\d+search(\d+)銆慲)
+var searchRefPrefixPattern = regexp.MustCompile(`銆?t(u(r(n(\d+(s(e(a(r(c(h(\d+)?)?)?)?)?)?)?)?)?)?)?)?$`)
 
 type SearchResult struct {
 	Title string `json:"title"`
@@ -378,7 +379,7 @@ func IsSearchToolCall(editContent string, phase string) bool {
 	if phase != "tool_call" {
 		return false
 	}
-	// tool_call 阶段包含 mcp 相关内容的都跳过
+	// tool_call 闃舵鍖呭惈 mcp 鐩稿叧鍐呭鐨勯兘璺宠繃
 	return strings.Contains(editContent, `"mcp"`) || strings.Contains(editContent, `mcp-server`)
 }
 
